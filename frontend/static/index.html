@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Todo List</title>
+    <title>Todo List with FastAPI</title>
     <style>
         * {
             box-sizing: border-box;
@@ -16,7 +16,7 @@
             background-color: #f5f7fa;
             color: #333;
             padding: 20px;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
         }
         
@@ -40,6 +40,26 @@
             color: #7f8c8d;
             margin-bottom: 30px;
             font-size: 1.1rem;
+        }
+        
+        .api-status {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        
+        .api-status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .api-status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
         
         .input-section {
@@ -77,6 +97,11 @@
             background-color: #2980b9;
         }
         
+        #addButton:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
         .tasks-header {
             display: flex;
             justify-content: space-between;
@@ -106,7 +131,12 @@
             display: none;
         }
         
-        #clearAllButton:hover {
+        #clearAllButton:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        #clearAllButton:hover:not(:disabled) {
             background-color: #c0392b;
         }
         
@@ -153,6 +183,11 @@
             background-color: #c0392b;
         }
         
+        .delete-button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -190,6 +225,13 @@
         .instructions li {
             margin-bottom: 8px;
             color: #555;
+        }
+        
+        .instructions code {
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
         }
         
         @media (max-width: 600px) {
@@ -232,13 +274,15 @@
     </style>
 </head>
 <body>
-    <h1>Simple Todo List</h1>
-    <p class="subtitle">Keep track of your tasks in one place</p>
+    <h1>Todo List with FastAPI</h1>
+    <p class="subtitle">Connected to a Python backend server</p>
+    
+    <div id="apiStatus" class="api-status disconnected">Connecting to API...</div>
     
     <div class="container">
         <div class="input-section">
             <input type="text" id="taskInput" placeholder="Enter a new task...">
-            <button id="addButton">Add Task</button>
+            <button id="addButton" disabled>Add Task</button>
         </div>
         
         <div class="tasks-header">
@@ -246,7 +290,7 @@
             <div class="tasks-count">
                 <span id="tasksCount">0</span> tasks
             </div>
-            <button id="clearAllButton">Clear All</button>
+            <button id="clearAllButton" disabled>Clear All</button>
         </div>
         
         <ul id="taskList">
@@ -273,11 +317,15 @@
             <li>Each task will appear in the list with a delete button</li>
             <li>Click the delete button to remove a specific task</li>
             <li>Use "Clear All" to remove all tasks at once</li>
-            <li>Your tasks are saved in your browser's local storage</li>
+            <li>Your tasks are stored in the FastAPI backend server</li>
+            <li>Make sure the backend server is running at <code>http://localhost:8000</code></li>
         </ul>
     </div>
 
     <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8000';
+        
         // DOM elements
         const taskInput = document.getElementById('taskInput');
         const addButton = document.getElementById('addButton');
@@ -285,57 +333,197 @@
         const emptyState = document.getElementById('emptyState');
         const tasksCount = document.getElementById('tasksCount');
         const clearAllButton = document.getElementById('clearAllButton');
+        const apiStatus = document.getElementById('apiStatus');
         
-        // Load tasks from localStorage when page loads
-        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        // State
+        let tasks = [];
+        let apiConnected = false;
         
         // Initialize the app
-        function init() {
-            renderTasks();
-            updateTasksCount();
+        async function init() {
+            await checkApiConnection();
             
-            // Add event listeners
-            addButton.addEventListener('click', addTask);
-            taskInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    addTask();
-                }
-            });
-            
-            clearAllButton.addEventListener('click', clearAllTasks);
+            if (apiConnected) {
+                await loadTasksFromApi();
+                
+                // Add event listeners
+                addButton.addEventListener('click', addTaskToApi);
+                taskInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        addTaskToApi();
+                    }
+                });
+                
+                clearAllButton.addEventListener('click', clearAllTasks);
+            }
         }
         
-        // Add a new task
-        function addTask() {
-            const taskText = taskInput.value.trim();
-            
-            if (taskText === '') {
-                alert('Please enter a task!');
+        // Check if API is available
+        async function checkApiConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                if (response.ok) {
+                    apiConnected = true;
+                    apiStatus.textContent = 'Connected to FastAPI backend';
+                    apiStatus.className = 'api-status connected';
+                    addButton.disabled = false;
+                    clearAllButton.disabled = false;
+                } else {
+                    throw new Error('API not responding');
+                }
+            } catch (error) {
+                apiConnected = false;
+                apiStatus.textContent = 'Cannot connect to backend. Make sure FastAPI server is running at http://localhost:8000';
+                apiStatus.className = 'api-status disconnected';
+                console.error('API connection error:', error);
+            }
+        }
+        
+        // Load tasks from API
+        async function loadTasksFromApi() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                if (response.ok) {
+                    tasks = await response.json();
+                    renderTasks();
+                    updateTasksCount();
+                } else {
+                    throw new Error('Failed to load tasks');
+                }
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+                showError('Failed to load tasks from server');
+            }
+        }
+        
+        // Add a new task via API
+        async function addTaskToApi() {
+            if (!apiConnected) {
+                showError('Cannot connect to backend server');
                 return;
             }
             
-            // Create task object
-            const task = {
-                id: Date.now(),
-                text: taskText,
-                completed: false
-            };
+            const taskText = taskInput.value.trim();
             
-            // Add to tasks array
-            tasks.push(task);
+            if (taskText === '') {
+                showError('Please enter a task!');
+                return;
+            }
             
-            // Save to localStorage
-            saveTasks();
+            // Disable button while saving
+            addButton.disabled = true;
+            addButton.textContent = 'Adding...';
             
-            // Clear input
-            taskInput.value = '';
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: taskText }),
+                });
+                
+                if (response.ok) {
+                    const newTask = await response.json();
+                    tasks.push(newTask);
+                    
+                    // Clear input
+                    taskInput.value = '';
+                    
+                    // Render tasks
+                    renderTasks();
+                    updateTasksCount();
+                    
+                    // Focus back on input
+                    taskInput.focus();
+                } else {
+                    throw new Error('Failed to add task');
+                }
+            } catch (error) {
+                console.error('Error adding task:', error);
+                showError('Failed to add task to server');
+            } finally {
+                addButton.disabled = false;
+                addButton.textContent = 'Add Task';
+            }
+        }
+        
+        // Delete a task via API
+        async function deleteTaskFromApi(taskId) {
+            if (!apiConnected) {
+                showError('Cannot connect to backend server');
+                return;
+            }
             
-            // Render tasks
-            renderTasks();
-            updateTasksCount();
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                if (response.ok) {
+                    // Remove task from local array
+                    tasks = tasks.filter(task => task.id !== taskId);
+                    
+                    // Re-render tasks
+                    renderTasks();
+                    updateTasksCount();
+                } else if (response.status === 404) {
+                    // Task not found in backend, reload all tasks
+                    await loadTasksFromApi();
+                } else {
+                    throw new Error('Failed to delete task');
+                }
+            } catch (error) {
+                console.error('Error deleting task:', error);
+                showError('Failed to delete task from server');
+            }
+        }
+        
+        // Clear all tasks via API
+        async function clearAllTasks() {
+            if (!apiConnected) {
+                showError('Cannot connect to backend server');
+                return;
+            }
             
-            // Focus back on input
-            taskInput.focus();
+            if (tasks.length === 0) return;
+            
+            if (confirm('Are you sure you want to delete all tasks?')) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/tasks`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                    });
+                    
+                    if (response.ok) {
+                        tasks = [];
+                        renderTasks();
+                        updateTasksCount();
+                    } else {
+                        throw new Error('Failed to clear all tasks');
+                    }
+                } catch (error) {
+                    console.error('Error clearing all tasks:', error);
+                    showError('Failed to clear all tasks from server');
+                }
+            }
         }
         
         // Render all tasks
@@ -367,7 +555,8 @@
                 const deleteButton = document.createElement('button');
                 deleteButton.className = 'delete-button';
                 deleteButton.textContent = 'Delete';
-                deleteButton.addEventListener('click', () => deleteTask(task.id));
+                deleteButton.disabled = !apiConnected;
+                deleteButton.addEventListener('click', () => deleteTaskFromApi(task.id));
                 
                 // Assemble task item
                 taskItem.appendChild(taskText);
@@ -378,39 +567,14 @@
             });
         }
         
-        // Delete a task
-        function deleteTask(id) {
-            // Remove task from array
-            tasks = tasks.filter(task => task.id !== id);
-            
-            // Save to localStorage
-            saveTasks();
-            
-            // Render tasks
-            renderTasks();
-            updateTasksCount();
-        }
-        
-        // Clear all tasks
-        function clearAllTasks() {
-            if (tasks.length === 0) return;
-            
-            if (confirm('Are you sure you want to delete all tasks?')) {
-                tasks = [];
-                saveTasks();
-                renderTasks();
-                updateTasksCount();
-            }
-        }
-        
         // Update tasks count
         function updateTasksCount() {
             tasksCount.textContent = tasks.length;
         }
         
-        // Save tasks to localStorage
-        function saveTasks() {
-            localStorage.setItem('tasks', JSON.stringify(tasks));
+        // Show error message
+        function showError(message) {
+            alert(`Error: ${message}`);
         }
         
         // Initialize the app when page loads
