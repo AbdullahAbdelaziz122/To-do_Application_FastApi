@@ -2,11 +2,9 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-# Create a minimal requirements.txt for pip
-RUN echo "fastapi" > requirements.txt && \
-    echo "uvicorn[standard]" >> requirements.txt
+COPY pyproject.toml requirements.txt ./
 
+# Install all dependencies from requirements.txt
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 COPY src ./src
@@ -21,11 +19,9 @@ WORKDIR /app
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
-# Copy source code (optional, but good for debugging)
+# Copy source code
 COPY src ./src
 
-# Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "mysite.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "mysite.main:app", "--host", "0.0.0.0", "--port", "8000"]

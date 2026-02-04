@@ -7,8 +7,10 @@ name = "mysite"
 requires-python = ">=3.12"
 version = "0.0.1"
 dependencies = [
-    "fastapi",
-    "uvicorn[standard]"
+    "fastapi==0.104.1",
+    "uvicorn[standard]==0.24.0",
+    "motor==3.6.0",
+    "pydantic==2.5.0"
 ]
 readme = "README.md"
 
