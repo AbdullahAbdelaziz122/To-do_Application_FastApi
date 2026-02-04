@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mysite"
+requires-python = ">=3.12"
+version = "0.0.1"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]"
+]
+readme = "README.md"
+
+[project.scripts]
+mysite = "mysite.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["mysite*"]
