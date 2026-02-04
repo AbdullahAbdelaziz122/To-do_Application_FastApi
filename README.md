@@ -2,6 +2,10 @@
 
 A modern, containerized todo list application with a FastAPI backend, MongoDB database, and a responsive frontend.
 
+
+## Demo
+![demo](demo.png)
+
 ## 🚀 Features
 
 - **Full-stack Todo Application**: Create, read, delete tasks
