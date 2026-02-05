@@ -45,7 +45,7 @@ A modern, containerized todo list application with a FastAPI backend, MongoDB da
 
 ```bash
 git clone AbdullahAbdelaziz122/To-do_Application_FastApi
-cd todo-fastapi-mongodb
+cd To-do_Application_FastApi
 ```
 
 ### 2. Set Up Environment Variables
